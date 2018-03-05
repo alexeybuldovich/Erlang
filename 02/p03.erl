@@ -1,11 +1,11 @@
 -module(p03).
--export([but_last/2]).
+-export([element_at/2]).
 
-but_last([H|_], 1) ->
+element_at([H|_], 1) ->
     H;
 
-but_last([H|T],N) ->
-    but_last(T, N-1);
+element_at([H|T],N) ->
+    element_at(T, N-1);
 
-but_last([],_) -> 
+element_at([],_) -> 
     undefined.
