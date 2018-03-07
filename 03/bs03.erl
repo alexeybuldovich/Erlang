@@ -1,29 +1,26 @@
 -module(bs03).
--export([split/1]).
+-export([split/2]).
 
-split(List) ->
-    Splitter = "=:=",
-    split(List, <<>>, [], Splitter).
+split(Bin, Chars) ->
+    split(Bin, Chars, 0, []).
     
-
-%split(List, splitter) ->
-%    split(List, <<>>, [], splitter).
-    
-%words(List) ->
-%    words(List, <<>>, []).
-    
-split(<<X,RestString/binary>>, Acc, Res, splitter) when X /= 32 ->
-    %io:format("1: X=~w; RestString=~p; Acc=~p; ~n", [X,RestString,Acc]),
-    split(RestString, <<Acc/binary,X>>, Res, splitter);
-    
-split(<<X, RestString/binary>>, Acc, Res, splitter) when X =:= 32 ->
-    %Res1 = [Res, binary:bin_to_list(Acc, length(Acc))],
-    io:format("2: X=~w; RestString=~p; Acc=~p; ~n", [X,RestString,Acc]),
-    split(RestString, <<>>, [Res,Acc], splitter);
-    
+split(Bin, Chars, Idx, Acc) ->
+    case Bin of 
+        <<This:Idx/binary, Char, Tail/binary>> ->
+            case lists:member(Char, Chars) of 
+                false ->
+                    split(Bin, Chars, Idx+1, Acc);
+                true -> 
+                    split(Tail, Chars, 0, [This|Acc])
+            end;
+        <<This:Idx/binary>> ->
+            Result = lists:reverse(Acc, [This]),
             
-split(<<"",RestString/binary>>, Acc, Res, splitter) ->
-    io:format("3: RestString=~p; Acc=~p; Res=~p; ~n", [RestString,Acc,Res]),
-    [Res,Acc].
-
-%bite_size
+            %Remove empty elements
+            [Res || Res <- Result, Res /= <<>>]
+    end.
+            
+            
+            
+    
+    
