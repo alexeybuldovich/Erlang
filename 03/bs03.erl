@@ -1,26 +1,31 @@
 -module(bs03).
+%-import(string, [len/1]).
 -export([split/2]).
 
 split(Bin, Chars) ->
-    split(Bin, Chars, 0, []).
+    split(Bin, Chars, <<>>).
     
-split(Bin, Chars, Idx, Acc) ->
-    case Bin of 
-        <<This:Idx/binary, Char, Tail/binary>> ->
-            case lists:member(Char, Chars) of 
+split(<<X, RestString/binary>>, Chars, Acc) ->
+    
+    Str = <<X, RestString/binary>>,
+    
+    Len_str = byte_size(Str),
+    Len_chars = byte_size(Chars),
+
+    case Len_str >= Len_chars of
+
+        true ->
+            <<X2:Len_chars/binary, RestString2/binary>> = Str,
+
+            case X2 =:= Chars of 
+                true ->
+                    split(RestString2, Chars, <<Acc/binary,",">>);
                 false ->
-                    split(Bin, Chars, Idx+1, Acc);
-                true -> 
-                    split(Tail, Chars, 0, [This|Acc])
+                    split(RestString, Chars, <<Acc/binary,X>>)
             end;
-        <<This:Idx/binary>> ->
-            Result = lists:reverse(Acc, [This]),
-            
-            %Remove empty elements
-            [Res || Res <- Result, Res /= <<>>]
-    end.
-            
-            
-            
+        false ->
+            split(RestString, Chars, <<Acc/binary,X>>)
+        end;
     
-    
+split(<<>>, Chars, Acc) ->
+    Acc.
