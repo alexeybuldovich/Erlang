@@ -1,6 +1,7 @@
 -module(bs03).
 %-import(string, [len/1]).
 -export([split/2]).
+-include_lib("eunit/include/eunit.hrl").
 
 split(Bin, Chars) ->
     split(Bin, Chars, <<>>).
@@ -29,3 +30,11 @@ split(<<X, RestString/binary>>, Chars, Acc) ->
     
 split(<<>>, Chars, Acc) ->
     Acc.
+
+
+
+split_test_() ->
+    [?_assert(split(<<"Col1-:-Col2-:-Col3-:-Col4-:-Col5">>, <<"-:-">>) =:= <<"Col1,Col2,Col3,Col4,Col5">>),
+     ?_assert(split(<<"111---111--222-333">>, <<"---">>) =:= <<"111,111--222-333">>),
+     ?_assertException(error, function_clause, split(123, <<"-:-123">>))
+].
