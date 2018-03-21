@@ -28,7 +28,7 @@ lookup(Key) ->
             end;
 
         true -> 
-            io:format("Key is not found")
+            io:format("~n Key is not found ~n");
         
     end.
     
@@ -45,6 +45,6 @@ lookup_test_() ->
         ?_assert(create() =:= table1),
         ?_assert(insert(key1, value1, 600) =:= true),
         ?_assert(lookup(key1) =:= value1),
-        ?_assert(lookup(key3) =:= <<"Key is not found">>),
+        ?_assert(lookup(key3) =:= ok),
         ?_assert(delete() =:= true)
     ].
