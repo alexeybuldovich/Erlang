@@ -39,9 +39,11 @@ child_lookup(Key) ->
 start_link() ->
     Pid = spawn_link(cache_server, child_start, []),
     link(Pid),
+    Pid ! {ping, self()},
     io:format("I (parent) have Pid: ~p~n", [self()]),
     io:format("I have a linked child: ~p~n", [Pid]),
-    start_link_receive().
+    {ok, Pid}.
+    %start_link_receive().
     
 start_link_receive() ->
     receive
