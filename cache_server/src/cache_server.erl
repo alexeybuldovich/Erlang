@@ -1,15 +1,17 @@
 -module(cache_server).
 -compile([export_all]).
 -include_lib("eunit/include/eunit.hrl").
--define(TABLE_NAME, "table1").
+-define(TABLE_NAME, table1).
 
 child_start() ->
     receive 
         {start, Pid} ->
-            ets:new(table1, [public, named_table]);
+            ets:new(table1, [public, named_table]),
+            io:format("~nets:new~n");
         %    Pid ! pong;
         {insert, Key, Value, Interval, Pid} ->
-            child_insert(key, Value, Interval),
+            child_insert(Key, Value, Interval),
+            io:format("child_insert"),
             Pid ! insert;
         {lookup, Key} -> 
             child_lookup(Key)
@@ -17,8 +19,9 @@ child_start() ->
 end.    
 
 child_insert(Key, Value, Time) ->
+    io:format("~nchild_insert(Key, Value, Time):~n"),
     TimeExpire = get_timestamp() + Time * 1000,
-    ets:insert(?TABLE_NAME, {Key, Value, TimeExpire}).
+    ets:insert(table1, {Key, Value, TimeExpire}).
 
 
 child_lookup(Key) ->
@@ -61,8 +64,9 @@ start_link_receive() ->
     end.
 
 insert(Pid, Key, Value, Interval) -> 
-    Pid ! {insert, Key, Value, Interval, self()},
-    start_link_receive().
+    %Pid = spawn_link(cache_server, child_start, []),
+    Pid ! {insert, Key, Value, Interval, self()}.
+    %start_link_receive().
 
 %lookup() ->
 %    Pid ! {ping, self()}.
