@@ -1,16 +1,25 @@
 -module(cache_server).
-%-export([export_all]).
 -compile([export_all]).
-%-define(TABLE_NAME, "table1").
+-include_lib("eunit/include/eunit.hrl").
+-define(TABLE_NAME, "table1").
 
 child_start() ->
     receive 
-        {ping, Pid} ->
-            Pid ! pong;
+        {start, Pid} ->
+            ets:new(table1, [public, named_table]);
+        %    Pid ! pong;
+        {insert, Key, Value, Interval, Pid} ->
+            child_insert(key, Value, Interval),
+            Pid ! insert;
         {lookup, Key} -> 
             child_lookup(Key)
             
 end.    
+
+child_insert(Key, Value, Time) ->
+    TimeExpire = get_timestamp() + Time * 1000,
+    ets:insert(?TABLE_NAME, {Key, Value, TimeExpire}).
+
 
 child_lookup(Key) ->
     CurrentTime = get_timestamp(),
@@ -39,23 +48,24 @@ child_lookup(Key) ->
 start_link() ->
     Pid = spawn_link(cache_server, child_start, []),
     link(Pid),
-    Pid ! {ping, self()},
+    Pid ! {start, self()},
     io:format("I (parent) have Pid: ~p~n", [self()]),
     io:format("I have a linked child: ~p~n", [Pid]),
+    %start_link_receive(),
     {ok, Pid}.
-    %start_link_receive().
+
     
 start_link_receive() ->
     receive
         Msg -> io:format("Child started: ~p~n", [Msg])
     end.
 
+insert(Pid, Key, Value, Interval) -> 
+    Pid ! {insert, Key, Value, Interval, self()},
+    start_link_receive().
 
 %lookup() ->
 %    Pid ! {ping, self()}.
-    
-    
-    
 
 delete() ->
     ets:delete(table1).
