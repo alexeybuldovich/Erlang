@@ -1,5 +1,5 @@
 -module(echo).
--export([start_link/1, insert/4, lookup/2, lookup_all/1, lookup_by_date/3, child_lookup_all/1, child_delete_expired/0, delete_expired/1, stop/1, loop/1]).
+-export([start_link/1, insert/4, lookup/2, lookup_all/1, lookup_by_date/3, child_delete_expired/0, delete_expired/1, stop/1, loop/1]).
 -define(TABLE_NAME, table1).
 
 
@@ -27,6 +27,8 @@ start_link([{DropInterval, Interval}]) ->
     {ok, Pid}.
 	%Pid ! stop.
 
+
+
 insert(Pid, Key, Value, Interval) ->
     Pid ! {insert, self(), Key, Value, Interval},
     get_response().
@@ -38,8 +40,8 @@ lookup(Pid, Key) ->
     %{ok}.
 
 lookup_all(Pid) ->
-    Pid ! {lookup_all, self()}.
-    %get_response().
+    Pid ! {lookup_all, self()},
+    get_response().
     %{ok}.
 
 lookup_by_date(Pid, DateFrom, DateTo) -> 
@@ -49,7 +51,9 @@ lookup_by_date(Pid, DateFrom, DateTo) ->
     io:format("~n DateFrom: ~p; ~n", [DateFrom2]),
     io:format("~n DateTo: ~p; ~n", [DateTo2]),
 
-    Pid ! {lookup_by_date, self(), DateFrom2, DateTo2}.
+    Pid ! {lookup_by_date, self(), DateFrom2, DateTo2},
+    
+    get_response().
     
 delete_expired(Pid) -> 
     Pid ! {delete, self()},
@@ -110,20 +114,25 @@ loop(Drop_Interval) ->
 			loop(Drop_Interval);
         {lookup, Pid, Key} ->
             Value = child_lookup(Key),
-            io:format("~n Lookup: ~p~n", [Key]),
+            %io:format("~n Lookup: ~p~n", [Key]),
 
             Pid ! {self(), Value},
-            io:format("~n Pid ! {self(), Value} ~n"),
+            %io:format("~n Pid ! {self(), Value} ~n"),
 
             loop(Drop_Interval);
         {lookup_by_date, Pid, DateFrom, DateTo} -> 
-            child_lookup_by_date([], DateFrom, DateTo, []),
+            Res = ets:select(?TABLE_NAME, [{{'$1', '$2', '$3'}, [{'>=', '$3', DateFrom}, {'=<','$3',DateTo}], ['$$']}]),
+
+            %Res = child_lookup_by_date(DateFrom, DateTo),
+            Pid ! {self(), Res},
             loop(Drop_Interval);
 
         {lookup_all, Pid} ->
             io:format("~n lookup_all: ~n"),
-            child_lookup_all([]),
-            Pid ! {self(), lookup_all_done},
+            %Res = child_lookup_all(),
+
+            Res = ets:tab2list(?TABLE_NAME),
+            Pid ! {self(), Res},
             loop(Drop_Interval);
 
         {delete, Pid} ->
@@ -131,9 +140,6 @@ loop(Drop_Interval) ->
             Pid ! {self(), delete_expired_done},
             loop(Drop_Interval);
 
-		{From, Msg} ->
-			From ! {self(), Msg},
-			loop(Drop_Interval);
         {delete} -> 
             delete_expired([]),
             loop(Drop_Interval);
@@ -148,8 +154,12 @@ child_lookup(Key) ->
     case Record =:= [] of
         false -> 
             [{Key, Value, TimeExpire}] = Record,
+
+            %io:format("~n ~p >= ~p; ~n", [TimeExpire, CurrentTime]),
+
             case TimeExpire >= CurrentTime of 
                 true ->
+                    %io:format("~n Value: ~p; ~n", [Value]),
                     Value;
                 false ->
                     io:format("~n Time is out for current key ~n")
@@ -160,10 +170,11 @@ child_lookup(Key) ->
     end.
 
 
-child_lookup_all(Res) ->
-        ets:tab2list(?TABLE_NAME).
+%child_lookup_all() ->
+%        Res = ets:tab2list(?TABLE_NAME),
+%        Res.
 
-        %io:format("~n Res: ~p~n", [Res]),
+        %io:format("~n Res: ~p; ~n", [Res]).
 
         %case Res of 
         %[] ->
@@ -194,60 +205,63 @@ child_lookup_all(Res) ->
 
 
 
-child_lookup_by_date(Res, DateFrom, DateTo, Acc) ->
-        io:format("~n Res: ~p;~p;~n", [DateFrom, DateTo]),
+%child_lookup_by_date(DateFrom, DateTo) ->
+%        io:format("~n child_lookup_by_date: ~p;~p;~n", [DateFrom, DateTo]),
 
-        case Res of 
-        [] ->
-            Res1 = ets:first(?TABLE_NAME),
-            io:format("~n Res1 = ets:first(?TABLE_NAME): ~n"),
-            Record = ets:lookup(?TABLE_NAME, Res1),
-            [{Key, Value, TimeExpire}] = Record,
-            io:format("~n ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
-            io:format("~n ~p >= ~p; ~p =< ~p; ~n", [TimeExpire, DateFrom, TimeExpire, DateTo]),
+%        ets:select(?TABLE_NAME, [{{'$1', '$2', '$3'}, [{'>=', '$3', DateFrom}, {'=<','$3',DateTo}], ['$$']}]).
+        %io:format("~n Res: ~p; ~n", [Res]).
 
-            case ((TimeExpire >= DateFrom) and (TimeExpire =< DateTo)) of 
-                true ->
-                    child_lookup_by_date(Res1, DateFrom, DateTo, [Acc|Record]);
-                false -> 
-                    child_lookup_by_date(Res1, DateFrom, DateTo, [Acc])
-            end;
-        "$end_of_table" ->
-            io:format("~n Res1 =:= '$end_of_table' ~n"),
-            %Res1 = false;
-            io:format("~nAcc2: ~p;~n", [Acc]),
-            Acc;
-        _ -> 
-            Res1 = ets:next(?TABLE_NAME, Res),
-            io:format("~n Res1 = ets:next(?TABLE_NAME, Res): ~n"),
-            Record = ets:lookup(?TABLE_NAME, Res1),
-            
-            case Record =/= [] of 
-                true ->
-                    io:format("~n Record: ~p~n: ", [Record]),
-                    [{Key, Value, TimeExpire}] = Record,
-                    io:format("~n true ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
-                    io:format("~n ~p >= ~p; ~p =< ~p; ~n", [TimeExpire, DateFrom, TimeExpire, DateTo]),
+        %case Res of 
+        %[] ->
+        %    Res1 = ets:first(?TABLE_NAME),
+        %    io:format("~n Res1 = ets:first(?TABLE_NAME): ~n"),
+        %    Record = ets:lookup(?TABLE_NAME, Res1),
+        %    [{Key, Value, TimeExpire}] = Record,
+        %    io:format("~n ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
+        %    io:format("~n ~p >= ~p; ~p =< ~p; ~n", [TimeExpire, DateFrom, TimeExpire, DateTo]),
 
-
-                    case ((TimeExpire >= DateFrom) and (TimeExpire =< DateTo)) of 
-                        true ->
-                            io:format("~n true ~n"),
-                            child_lookup_by_date(Res1, DateFrom, DateTo, [Acc|Record]);
-                        false -> 
-                            io:format("~n false ~n"),
-
-                            child_lookup_by_date(Res1, DateFrom, DateTo, [Acc])
-                    end;
-
-                    %child_lookup_by_date(Res1, DateFrom, DateTo, [Acc|Record]);
-                false -> 
-                    io:format("~nfalse Acc2: ~p;~n", [Acc]),
-                    Acc
-            end
+        %    case ((TimeExpire >= DateFrom) and (TimeExpire =< DateTo)) of 
+        %        true ->
+        %            child_lookup_by_date(Res1, DateFrom, DateTo, [Acc|Record]);
+        %        false -> 
+        %            child_lookup_by_date(Res1, DateFrom, DateTo, [Acc])
+        %    end;
+        %"$end_of_table" ->
+        %    io:format("~n Res1 =:= '$end_of_table' ~n"),
+        %    %Res1 = false;
+        %    io:format("~nAcc2: ~p;~n", [Acc]),
+        %    Acc;
+        %_ -> 
+        %    Res1 = ets:next(?TABLE_NAME, Res),
+        %    io:format("~n Res1 = ets:next(?TABLE_NAME, Res): ~n"),
+        %    Record = ets:lookup(?TABLE_NAME, Res1),
+        %    
+        %    case Record =/= [] of 
+        %        true ->
+        %            io:format("~n Record: ~p~n: ", [Record]),
+        %            [{Key, Value, TimeExpire}] = Record,
+        %            io:format("~n true ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
+        %            io:format("~n ~p >= ~p; ~p =< ~p; ~n", [TimeExpire, DateFrom, TimeExpire, DateTo]),
 
 
-    end.
+        %            case ((TimeExpire >= DateFrom) and (TimeExpire =< DateTo)) of 
+        %                true ->
+        %                    io:format("~n true ~n"),
+        %                    child_lookup_by_date(Res1, DateFrom, DateTo, [Acc|Record]);
+        %                false -> 
+        %                    io:format("~n false ~n"),
+
+        %                    child_lookup_by_date(Res1, DateFrom, DateTo, [Acc])
+        %            end;
+
+        %            %child_lookup_by_date(Res1, DateFrom, DateTo, [Acc|Record]);
+        %        false -> 
+        %            io:format("~nfalse Acc2: ~p;~n", [Acc]),
+        %            Acc
+        %    end
+
+
+    %end.
 
 
 
