@@ -1,12 +1,14 @@
 -module(echo).
--export([start_link/1, insert/4, lookup/2, lookup_all/1, lookup_by_date/3, child_delete_expired/0, delete_expired/1, stop/1, loop/1]).
+-export([start_link/1, insert/3, lookup/1, lookup_all/0, lookup_by_date/2, child_delete_expired/0, delete_expired/0, stop/1, loop/1]).
 -define(TABLE_NAME, table1).
-
+-define(PID, 0).
 
 start_link([{DropInterval, Interval}]) ->
 
     TimeExpire = get_timestamp() + Interval * 1000,
 	Pid = spawn(echo, loop, [TimeExpire]),
+
+    register(?PID, Pid),
 
 	%Pid ! {self(), hello},
     Pid ! {start, self()},
@@ -19,9 +21,9 @@ start_link([{DropInterval, Interval}]) ->
 
     get_response(),
 
-    insert(Pid, "Key1", "Value1", 20),
-    insert(Pid, "Key2", "Value2", 30),
-    insert(Pid, "Key3", "Value3", 40),
+    insert("Key1", "Value1", 20),
+    insert("Key2", "Value2", 30),
+    insert("Key3", "Value3", 40),
 
 
     {ok, Pid}.
@@ -29,34 +31,34 @@ start_link([{DropInterval, Interval}]) ->
 
 
 
-insert(Pid, Key, Value, Interval) ->
-    Pid ! {insert, self(), Key, Value, Interval},
+insert(Key, Value, Interval) ->
+    ?PID ! {insert, self(), Key, Value, Interval},
     get_response().
     %{ok}.
 
-lookup(Pid, Key) ->
-    Pid ! {lookup, self(), Key},
+lookup(Key) ->
+    ?PID ! {lookup, self(), Key},
     get_response().
     %{ok}.
 
-lookup_all(Pid) ->
-    Pid ! {lookup_all, self()},
+lookup_all() ->
+    ?PID ! {lookup_all, self()},
     get_response().
     %{ok}.
 
-lookup_by_date(Pid, DateFrom, DateTo) -> 
+lookup_by_date(DateFrom, DateTo) -> 
     DateFrom2 = to_timestamp(DateFrom),
     DateTo2 = to_timestamp(DateTo),
     
     io:format("~n DateFrom: ~p; ~n", [DateFrom2]),
     io:format("~n DateTo: ~p; ~n", [DateTo2]),
 
-    Pid ! {lookup_by_date, self(), DateFrom2, DateTo2},
+    ?PID ! {lookup_by_date, self(), DateFrom2, DateTo2},
     
     get_response().
     
-delete_expired(Pid) -> 
-    Pid ! {delete, self()},
+delete_expired() -> 
+    ?PID ! {delete, self()},
     get_response().
     %{ok}.
 
@@ -69,7 +71,7 @@ get_response() ->
     io:format("~n get_response: ~n"),
     
 	receive
-		{Pid, Msg} ->
+		{?PID, Msg} ->
 			io:format("~n~p~n",[Msg]);
         {Msg} ->
             io:format("~n Receive ~p~n", [Msg])
@@ -122,7 +124,7 @@ loop(Drop_Interval) ->
             loop(Drop_Interval);
         {lookup_by_date, Pid, DateFrom, DateTo} -> 
             Res = ets:select(?TABLE_NAME, [{{'$1', '$2', '$3'}, [{'>=', '$3', DateFrom}, {'=<','$3',DateTo}], ['$$']}]),
-
+            
             %Res = child_lookup_by_date(DateFrom, DateTo),
             Pid ! {self(), Res},
             loop(Drop_Interval);
@@ -141,7 +143,7 @@ loop(Drop_Interval) ->
             loop(Drop_Interval);
 
         {delete} -> 
-            delete_expired([]),
+            delete_expired(),
             loop(Drop_Interval);
 		stop ->
             io:format("~nStop~n"),
