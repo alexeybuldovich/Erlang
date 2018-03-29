@@ -1,5 +1,5 @@
 -module(echo).
--export([start_link/1, insert/4, lookup/2, lookup_all/1, lookup_by_date/3, child_lookup_all/1, child_delete_expired/1, delete_expired/1, stop/1, loop/1]).
+-export([start_link/1, insert/4, lookup/2, lookup_all/1, lookup_by_date/3, child_lookup_all/1, child_delete_expired/0, delete_expired/1, stop/1, loop/1]).
 -define(TABLE_NAME, table1).
 
 
@@ -18,6 +18,11 @@ start_link([{DropInterval, Interval}]) ->
 	%end,
 
     get_response(),
+
+    insert(Pid, "Key1", "Value1", 20),
+    insert(Pid, "Key2", "Value2", 30),
+    insert(Pid, "Key3", "Value3", 40),
+
 
     {ok, Pid}.
 	%Pid ! stop.
@@ -78,8 +83,8 @@ loop(Drop_Interval) ->
 
     case Drop_Interval < CurrentTime of 
         true ->
-           io:format("~n Delete expired records2: ~p; ~p ~n", [Drop_Interval, CurrentTime]),
-            child_delete_expired([]);
+            io:format("~n Delete expired records2: ~p; ~p ~n", [Drop_Interval, CurrentTime]),
+            child_delete_expired();
         false -> 
             io:format("~n Delete expired records3: ~p; ~p ~n", [Drop_Interval, CurrentTime]),
             []
@@ -122,7 +127,7 @@ loop(Drop_Interval) ->
             loop(Drop_Interval);
 
         {delete, Pid} ->
-            child_delete_expired([]),
+            child_delete_expired(),
             Pid ! {self(), delete_expired_done},
             loop(Drop_Interval);
 
@@ -156,36 +161,36 @@ child_lookup(Key) ->
 
 
 child_lookup_all(Res) ->
-        io:format("~n Res: ~p~n", [Res]),
+        ets:tab2list(?TABLE_NAME).
 
-        case Res of 
-        [] ->
-            Res1 = ets:first(?TABLE_NAME),
-            io:format("~n Res1 = ets:first(?TABLE_NAME): ~n"),
-            Record = ets:lookup(?TABLE_NAME, Res1),
-            [{Key, Value, TimeExpire}] = Record,
-            io:format("~n ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
-            child_lookup_all(Res1);
-        "$end_of_table" ->
-            io:format("~n Res1 =:= '$end_of_table' ~n"),
-            Res1 = false;
-        _ -> 
-            Res1 = ets:next(?TABLE_NAME, Res),
-            io:format("~n Res1 = ets:next(?TABLE_NAME, Res): ~n"),
-            Record = ets:lookup(?TABLE_NAME, Res1),
-            
-            case Record =/= [] of 
-                true ->
-                    io:format("~n Record: ~p~n: ", [Record]),
-                    [{Key, Value, TimeExpire}] = Record,
-                    io:format("~n ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
-                    child_lookup_all(Res1);
-                false -> 
-                    false
-            end
+        %io:format("~n Res: ~p~n", [Res]),
 
-
-    end.
+        %case Res of 
+        %[] ->
+        %    Res1 = ets:first(?TABLE_NAME),
+        %    io:format("~n Res1 = ets:first(?TABLE_NAME): ~n"),
+        %    Record = ets:lookup(?TABLE_NAME, Res1),
+        %    [{Key, Value, TimeExpire}] = Record,
+        %    io:format("~n ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
+        %    child_lookup_all(Res1);
+        %"$end_of_table" ->
+        %    io:format("~n Res1 =:= '$end_of_table' ~n"),
+        %    Res1 = false;
+        %_ -> 
+        %    Res1 = ets:next(?TABLE_NAME, Res),
+        %    io:format("~n Res1 = ets:next(?TABLE_NAME, Res): ~n"),
+        %    Record = ets:lookup(?TABLE_NAME, Res1),
+        %    
+        %    case Record =/= [] of 
+        %        true ->
+        %            io:format("~n Record: ~p~n: ", [Record]),
+        %            [{Key, Value, TimeExpire}] = Record,
+        %            io:format("~n ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
+        %            child_lookup_all(Res1);
+        %        false -> 
+        %            false
+        %    end
+    %end.
 
 
 
@@ -246,61 +251,12 @@ child_lookup_by_date(Res, DateFrom, DateTo, Acc) ->
 
 
 
-child_delete_expired(Res) ->
-        io:format("~n Res: ~p~n", [Res]),
+child_delete_expired() ->
+        io:format("~n child_delete_expired Res: ~n", []),
 
-        case Res of 
-        [] ->
-            Res1 = ets:first(?TABLE_NAME),
-            io:format("~n Res1 = ets:first(?TABLE_NAME): ~n"),
-            Record = ets:lookup(?TABLE_NAME, Res1),
-            [{Key, Value, TimeExpire}] = Record,
-            io:format("~n ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
+        CurrentTime = get_timestamp(),
+        ets:select_delete(?TABLE_NAME, [{{'$1', '$2', '$3'}, [{'<', '$3', CurrentTime}], [true]}]).
 
-            CurrentTime = get_timestamp(),
-
-            case TimeExpire < CurrentTime of 
-                true ->
-                    io:format("~n TimeExpire < CurrentTime: (~p < ~p) ~n", [TimeExpire, CurrentTime]),
-                    ets:delete(?TABLE_NAME, Key);
-                false ->
-                    io:format("~n TimeExpire >= CurrentTime: (~p >= ~p) ~n", [TimeExpire, CurrentTime]),
-                    false
-            end,
-
-            child_delete_expired(Res1);
-        "$end_of_table" ->
-            io:format("~n Res1 =:= '$end_of_table' ~n"),
-            Res1 = false;
-        _ -> 
-            Res1 = ets:next(?TABLE_NAME, Res),
-            io:format("~n Res1 = ets:next(?TABLE_NAME, Res): ~n"),
-            Record = ets:lookup(?TABLE_NAME, Res1),
-            
-            case Record =/= [] of 
-                true ->
-                    io:format("~n Record: ~p~n: ", [Record]),
-                    [{Key, Value, TimeExpire}] = Record,
-                    io:format("~n ~p;~p;~p; ~n", [Key, Value, TimeExpire]),
-
-                    CurrentTime = get_timestamp(),
-
-                    case TimeExpire < CurrentTime of 
-                        true ->
-                            io:format("~n TimeExpire < CurrentTime: (~p < ~p) ~n", [TimeExpire, CurrentTime]),
-                            ets:delete(?TABLE_NAME, Key);
-                        false ->
-                            io:format("~n TimeExpire >= CurrentTime: (~p >= ~p) ~n", [TimeExpire, CurrentTime]),
-                            false
-                    end,
-
-                    child_delete_expired(Res1);
-                false -> 
-                    false
-            end
-
-
-    end.
 
 get_timestamp() ->                                                                                                                                                                                   
   {Mega, Seconds, MilliSeconds} = erlang:timestamp(),
