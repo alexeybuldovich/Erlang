@@ -1,12 +1,12 @@
 -module(cache_server).
--export([start_link/1, insert/3, lookup/1, lookup_all/0, lookup_by_date/2, child_delete_expired/0, delete_expired/0, stop/1, loop/1]).
+-export([start_link/1, insert/3, lookup/1, lookup_all/0, lookup_by_date/2, child_delete_expired/0, delete_expired/0, stop/0, loop/1]).
 -define(TABLE_NAME, table1).
 -define(PID, msg).
 
 start_link([{DropInterval, Interval}]) ->
 
     TimeExpire = get_timestamp() + Interval * 1000,
-	Pid = spawn(echo, loop, [TimeExpire]),
+	Pid = spawn(cache_server, loop, [TimeExpire]),
 
     %register(?SERVER, Pid),
 
@@ -67,11 +67,11 @@ delete_expired() ->
 
 
 
-stop(Pid) ->
-    Pid ! stop.
+stop() ->
+    ?PID ! {stop, self()}.
 
 get_response() ->
-    io:format("~n get_response: ~n"),
+    %io:format("~n get_response: ~n"),
     
 	receive
 		{Pid, Msg} ->
@@ -80,39 +80,33 @@ get_response() ->
             io:format("~n Receive ~p~n", [Msg])
 	end.
 
-    %get_response().
-
 
 loop(Drop_Interval) ->
 
     CurrentTime = get_timestamp(),
 
     %Delete expired records
-    %io:format("~n Delete expired records1: ~p; ~p ~n", [Drop_Interval, CurrentTime]),
-
     case Drop_Interval < CurrentTime of 
         true ->
-            io:format("~n Delete expired records2: ~p; ~p ~n", [Drop_Interval, CurrentTime]),
             child_delete_expired();
         false -> 
-            io:format("~n Delete expired records3: ~p; ~p ~n", [Drop_Interval, CurrentTime]),
             []
     end,
 
 	receive
         {start, Pid} -> 
             ets:new(?TABLE_NAME, [public, named_table]),
-            io:format("~nets:new~n"),
+            %io:format("~nets:new~n"),
             Pid ! {self(), start_done},
 			loop(Drop_Interval);
         {insert, Pid, Key, Value, Interval} -> 
-            io:format("~nchild_insert(Key, Value, Interval):~n"),
+            %io:format("~nchild_insert(Key, Value, Interval):~n"),
 
             TimeExpire = get_timestamp() + Interval * 1000,
-            io:format("~nTimeExpire: ~p~n", [TimeExpire]),
+            %io:format("~nTimeExpire: ~p~n", [TimeExpire]),
 
             ets:insert(?TABLE_NAME, {Key, Value, TimeExpire}),
-            io:format("~nets:insert(table1, {~p, ~p, ~p}): ~n", [Key, Value, TimeExpire]),
+            %io:format("~nets:insert(table1, {~p, ~p, ~p}): ~n", [Key, Value, TimeExpire]),
     
             Pid ! {self(), insert_done},
 
@@ -133,7 +127,7 @@ loop(Drop_Interval) ->
             loop(Drop_Interval);
 
         {lookup_all, Pid} ->
-            io:format("~n lookup_all: ~n"),
+            %io:format("~n lookup_all: ~n"),
             %Res = child_lookup_all(),
 
             Res = ets:tab2list(?TABLE_NAME),
@@ -145,11 +139,12 @@ loop(Drop_Interval) ->
             Pid ! {self(), delete_expired_done},
             loop(Drop_Interval);
 
-        {delete} -> 
-            delete_expired(),
-            loop(Drop_Interval);
-		stop ->
-            io:format("~nStop~n"),
+        %{delete} -> 
+        %    delete_expired(),
+        %   loop(Drop_Interval);
+		{stop, Pid} ->
+            %io:format("~nStop~n"),
+            Pid ! {self(), stop_done},
 			true
 	end.
 
@@ -271,7 +266,7 @@ child_lookup(Key) ->
 
 
 child_delete_expired() ->
-        io:format("~n child_delete_expired Res: ~n", []),
+        %io:format("~n child_delete_expired Res: ~n", []),
 
         CurrentTime = get_timestamp(),
         ets:select_delete(?TABLE_NAME, [{{'$1', '$2', '$3'}, [{'<', '$3', CurrentTime}], [true]}]).
