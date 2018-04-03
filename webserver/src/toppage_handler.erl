@@ -2,6 +2,8 @@
 
 %% @doc Hello world handler.
 -module(toppage_handler).
+%-include_lib("cache_server.hrl").
+-import_all(cache_server).
 
 -export([init/3]).
 -export([handle/2]).
@@ -12,7 +14,8 @@ init(_Type, Req, []) ->
 
 handle(Req, State) ->
     Res_json = jsx:encode([{<<"library">>,<<"jsx">>},{<<"awesome">>,true}]),
-    
+
+    cache_server:test(),
 
 	{ok, Req2} = cowboy_req:reply(200, [
 		{<<"content-type">>, <<"text/plain">>}
