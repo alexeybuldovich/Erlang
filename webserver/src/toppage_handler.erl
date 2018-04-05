@@ -69,6 +69,9 @@ handle(Req, State) ->
 
             lookup_by_date(DateFrom, DateTo);
 
+        <<"lookup_all">> ->
+                lookup_all();
+
         <<"start_link">> ->
             start_link({drop_interval, 3600})
 
