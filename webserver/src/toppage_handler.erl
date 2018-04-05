@@ -1,9 +1,9 @@
 %% Feel free to use, reuse and abuse the code in this file.
 
-%% @doc Hello world handler.
+%% @doc webserver handler.
 -module(toppage_handler).
 
--export([test/0, start_link/1, insert/3, lookup/1, lookup_all/0, lookup_by_date/2, child_delete_expired/0, delete_expired/0, stop/0, loop/1]).
+-export([start_link/1, insert/3, lookup/1, lookup_all/0, lookup_by_date/2, child_delete_expired/0, delete_expired/0, stop/0, loop/1]).
 -define(TABLE_NAME, table1).
 -define(PID, msg).
 
@@ -23,24 +23,25 @@ handle(Req, State) ->
 
     %cache_server:start_link()
 
-    io:format("FirstReq = ~p~n", [Req]),
+    %io:format("FirstReq = ~p~n", [Req]),
 
     {ok, Body, Req2} = cowboy_req:body(Req),
 
-    io:format("~p~n", [{Body, Req2}]),
+    %io:format("~n Body: ~p; Req2: ~p; ~n", [Body, Req2]),
     Body_decode = jsx:decode(Body),
-    io:format("~n Body: ~p; ~n",[Body_decode]),
+    %io:format("~n Body: ~p; ~n",[Body_decode]),
 
-    Body_keys_list = proplists:get_keys(Body_decode),
-    io:format("~n Body_keys_list: ~p; ~n", [Body_keys_list]),
+    %Body_keys_list = proplists:get_keys(Body_decode),
+    %io:format("~n Body_keys_list: ~p; ~n", [Body_keys_list]),
 
     Action_value = proplists:get_value(<<"action">>, Body_decode),
-    io:format("~n Action_value: ~p; ~n", [Action_value]),
+    %io:format("~n Action_value: ~p; ~n", [Action_value]),
 
 
 
     Result = case Action_value of
         <<"insert">> ->
+
             start_link({drop_interval, 3600}),
 
             Key = proplists:get_value(<<"key">>, Body_decode),
@@ -54,15 +55,26 @@ handle(Req, State) ->
             %io:format("~n <<insert>> Result: ~p;  ~n", [Result]);
 
         <<"lookup">> ->
-            Key = proplists:get_value("key"),
+            Key = proplists:get_value(<<"key">>, Body_decode),
             lookup(Key);
+
+        <<"lookup_by_date">> ->
+            %io:format("~n lookup_by_date ~n"),
+
+            DateFrom = proplists:get_value(<<"date_from">>, Body_decode),
+            %io:format("~n DateFrom: ~p; ~n", [DateFrom]),
+
+            DateTo = proplists:get_value(<<"date_to">>, Body_decode),
+            %io:format("~n DateTo: ~p; ~n", [DateTo]),
+
+            lookup_by_date(DateFrom, DateTo);
 
         <<"start_link">> ->
             start_link({drop_interval, 3600})
 
     end,
 
-    io:format("~n After case: ~n"),
+    %io:format("~n After case: ~n"),
 
 
     %Method = cowboy_req:method(Req),
@@ -100,28 +112,18 @@ handle(Req, State) ->
     %io:format("~n Values: ~p; ~n", [Values]),
 
 
-
-    %{GetVals, Values}  = cowboy_req:qs_vals(Req4),
-    %io:format("~n GetVals: ~p; Values: ~p; ~n", [GetVals, Values]),
-
-    %MessageId   = proplists:get_value(<<"action">>, GetVals),
-    %io:format("~n MessageId: ~p; ~n", [MessageId]),
-
-    %EchoName    = proplists:get_value(<<"m">>, GetVals),
-
-    %io:format("~n Req: ~p; State: ~p; ~n Method: ~p; ~n FwdIPRaw: ~p; ~n", [Req, State, Method, FwdIPRaw]),
-    %io:format("~n ClientCookie: ~p; ~n Req5: ~p; ~n MessageId: ~p; ~n EchoName: ~p; ~n", [ClientCookie, Req5, MessageId, EchoName]),
-
     %Res_json = jsx:encode([{<<"library">>,<<"jsx">>},{<<"awesome">>,true}]),
 
-    io:format("~n Result: ~p; ~n",[Result]),
+    %io:format("~n Result: ~p; ~n",[Result]),
 
     Res_json = jsx:encode([{<<"result">>, Result}]),
+
+    %io:format("~n Res_json: ~p; ~n", [Res_json]),
 
     %start_link({drop_interval,3600}),
 
 	{ok, Req2} = cowboy_req:reply(200, [
-		{<<"content-type">>, <<"text/plain">>}
+		{<<"content-type">>, <<"application/json">>}
 	], Res_json, Req),
 	{ok, Req2, State}.
 
@@ -131,9 +133,6 @@ terminate(_Reason, _Req, _State) ->
 
 
 
-test() ->
-    io:format("~n test: ~n").
-    %io:format("~n insert Key: ~p; Value: ~p; Interval: ~p; ~n", [Key, Value, Interval]).
 
 start_link({_, Interval}) ->
     TimeExpire = get_timestamp() + Interval * 1000,
@@ -142,9 +141,9 @@ start_link({_, Interval}) ->
     Pid ! {start, self()},
     get_response(),
 
-    insert("Key1", "Value1", 20),
-    insert("Key2", "Value2", 40),
-    insert("Key3", "Value3", 600),
+    insert(<<"Key1">>, <<"Value1">>, 120),
+    insert(<<"Key2">>, <<"Value2">>, 140),
+    insert(<<"Key3">>, <<"Value3">>, 1600),
 
     {ok, Pid}.
 
@@ -154,7 +153,7 @@ start_link({_, Interval}) ->
 
 
 insert(Key, Value, Interval) ->
-    io:format("~n insert Key: ~p; Value: ~p; Interval: ~p; ~n", [Key, Value, Interval]),
+    %io:format("~n insert Key: ~p; Value: ~p; Interval: ~p; ~n", [Key, Value, Interval]),
     ?PID ! {insert, self(), Key, Value, Interval},
     get_response().
     %{ok}.
@@ -169,10 +168,35 @@ lookup_all() ->
     get_response().
     %{ok}.
 
-lookup_by_date(DateFrom, DateTo) -> 
-    DateFrom2 = to_timestamp(DateFrom),
-    DateTo2 = to_timestamp(DateTo),
-    
+lookup_by_date(DateFrom, DateTo) ->
+    %io:format("~n DateFrom: ~p; DateTo: ~p; ~n", [DateFrom, DateTo]),
+    %io:format("~n to_timestamp: ~p ~n",(calendar:datetime_to_gregorian_seconds(DateFrom) - 62167219200)*1000),
+
+    <<YearFrom:4/binary, _:1/binary, MonthFrom:2/binary, _:1/binary,  DayFrom:2/binary, _:1/binary, HoursFrom:2/binary, _:1/binary, MinutesFrom:2/binary, _:1/binary, SecondsFrom:2/binary>> = DateFrom,
+    <<YearTo:4/binary, _:1/binary, MonthTo:2/binary, _:1/binary,  DayTo:2/binary, _:1/binary, HoursTo:2/binary, _:1/binary, MinutesTo:2/binary, _:1/binary, SecondsTo:2/binary>> = DateTo,
+
+    %io:format("~n DateFrom: ~p; DateTo: ~p; ~n", [{{Year,Month,Day}}, DateTo]),
+
+    YearFrom2 = list_to_integer(binary:bin_to_list(YearFrom)),
+    MonthFrom2 = list_to_integer(binary:bin_to_list(MonthFrom)),
+    DayFrom2 = list_to_integer(binary:bin_to_list(DayFrom)),
+    HoursFrom2 = list_to_integer(binary:bin_to_list(HoursFrom)),
+    MinutesFrom2 = list_to_integer(binary:bin_to_list(MinutesFrom)),
+    SecondsFrom2 = list_to_integer(binary:bin_to_list(SecondsFrom)),
+
+    YearTo2 = list_to_integer(binary:bin_to_list(YearTo)),
+    MonthTo2 = list_to_integer(binary:bin_to_list(MonthTo)),
+    DayTo2 = list_to_integer(binary:bin_to_list(DayTo)),
+    HoursTo2 = list_to_integer(binary:bin_to_list(HoursTo)),
+    MinutesTo2 = list_to_integer(binary:bin_to_list(MinutesTo)),
+    SecondsTo2 = list_to_integer(binary:bin_to_list(SecondsTo)),
+
+    DateFrom2 = to_timestamp({{YearFrom2,MonthFrom2,DayFrom2},{HoursFrom2,MinutesFrom2,SecondsFrom2}}),
+    DateTo2 = to_timestamp({{YearTo2,MonthTo2,DayTo2},{HoursTo2,MinutesTo2,SecondsTo2}}),
+
+
+    %io:format("~n DateFrom2: ~p; DateTo2: ~p; ~n", [DateFrom2, DateTo2]),
+
     ?PID ! {lookup_by_date, self(), DateFrom2, DateTo2},
     
     get_response().
@@ -228,7 +252,9 @@ loop(Drop_Interval) ->
             Pid ! {self(), Value},
             loop(Drop_Interval);
 
-        {lookup_by_date, Pid, DateFrom, DateTo} -> 
+        {lookup_by_date, Pid, DateFrom, DateTo} ->
+            %io:format("~nDateFrom: ~p; DateTo: ~p; ~n", [DateFrom, DateTo]),
+
             Res = ets:select(?TABLE_NAME, [{{'$1', '$2', '$3'}, [{'>=', '$3', DateFrom}, {'=<','$3',DateTo}], ['$$']}]),
             Pid ! {self(), Res},
             loop(Drop_Interval);
@@ -275,7 +301,9 @@ child_delete_expired() ->
     ets:select_delete(?TABLE_NAME, [{{'$1', '$2', '$3'}, [{'<', '$3', CurrentTime}], [true]}]).
 
 
-get_timestamp() ->                                                                                                                                                                                   
+
+
+get_timestamp() ->
   {Mega, Seconds, MilliSeconds} = erlang:timestamp(),
   (Mega*1000000 + Seconds)*1000 + erlang:round(MilliSeconds/1000).
 
