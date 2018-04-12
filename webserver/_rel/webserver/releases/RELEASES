@@ -6,5 +6,5 @@
            {jsx,"2.8.2","./lib/jsx-2.8.2"},
            {cowlib,"1.0.2","./lib/cowlib-1.0.2"},
            {cowboy,"1.0.4","./lib/cowboy-1.0.4"},
-           {webserver,"0.1.0","./lib/webserver-0.1.0"}],
+           {webserver,"1","./lib/webserver-1"}],
           permanent}].

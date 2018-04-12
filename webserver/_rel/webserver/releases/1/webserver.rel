@@ -7,4 +7,4 @@
           {jsx,"2.8.2"},
           {cowlib,"1.0.2"},
           {cowboy,"1.0.4"},
-          {webserver,"0.1.0"}]}. 
+          {webserver,"1"}]}. 
