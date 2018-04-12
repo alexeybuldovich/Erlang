@@ -3,7 +3,7 @@
 -define(TABLE_NAME, table1).
 -define(PID, msg).
 
-start_link([{DropInterval, Interval}]) ->
+start_link([{_, Interval}]) ->
 
     TimeExpire = get_timestamp() + Interval * 1000,
 	Pid = spawn(cache_server, loop, [TimeExpire]),
@@ -59,7 +59,7 @@ stop() ->
 get_response() ->
     
 	receive
-		{Pid, Msg} ->
+		{_, Msg} ->
 			io:format("~n~p~n",[Msg]);
         {Msg} ->
             io:format("~n Receive ~p~n", [Msg])
